@@ -2,7 +2,7 @@
 /*
  * ST54SPI GPIO driver
  * Copyright (C) 2021 ST Microelectronics S.A.
- * Copyright (c) 2022-2023 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
  *  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -31,6 +31,7 @@
 #include <linux/uaccess.h>
 #include <linux/cdev.h>
 #include <linux/types.h>
+#include <linux/delay.h>
 
 /* Flag ESE_CONF_GPIO_OPEN_RELEASE is to configure nRESET GPIO in
    open function and freeing GPIO in release function */
@@ -79,6 +80,8 @@ long st54spi_gpio_dev_ioctl(struct file *pfile, unsigned int cmd, unsigned long 
 	case ST54SPI_SET_GPIO:
 		if ((arg == 0) || (arg == 1)) {
 			gpio_set_value(st54spi_gpio_dev->gpiod_reset, arg);
+			if (arg == 0)
+				usleep_range(3000, 3001);
 		} else {
 			pr_err("%s bad arg %lu\n", __func__, arg);
 			ret = -ENOIOCTLCMD;
