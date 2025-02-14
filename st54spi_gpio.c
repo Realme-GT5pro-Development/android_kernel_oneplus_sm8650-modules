@@ -2,7 +2,7 @@
 /*
  * ST54SPI GPIO driver
  * Copyright (C) 2021 ST Microelectronics S.A.
- * Copyright (c) 2022-2024 Qualcomm Innovation Center, Inc. All rights reserved.
+ * Copyright (c) 2022-2025 Qualcomm Innovation Center, Inc. All rights reserved.
  *  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
  * the Free Software Foundation; either version 2 of the License, or
@@ -44,6 +44,12 @@
 #define ST54SPI_GPIO__MAGIC  0xEB
 #define ST54SPI_GET_GPIO	_IOW(ST54SPI_GPIO__MAGIC, 0x01, unsigned int)
 #define ST54SPI_SET_GPIO	_IOW(ST54SPI_GPIO__MAGIC, 0x02, unsigned int)
+#define MAX_NAME_SIZE           50
+
+enum st_device_type {
+	ST54SPI_GPIO = 1,
+	STSAFE320_GPIO
+};
 
 struct st54spi_gpio_device {
 	dev_t st54spi_gpio_dev_t;
@@ -160,11 +166,24 @@ static int st54spi_gpio_probe(struct platform_device *pdev)
 	struct st54spi_gpio_device *st54spi_gpio_dev;
 	struct device *dev = &pdev->dev;
 	struct device_node *np = dev->of_node;
+	enum st_device_type device_id;
+	char device_name[MAX_NAME_SIZE] = {0};
 
 	if (np == NULL) {
 		pr_err("%s : struct np is null\n", __func__);
 		return -ENOMEM;
 	}
+
+	device_id = (enum st_device_type)device_get_match_data(dev);
+	if (!device_id) {
+		pr_err("%s: device type is not compatible with the driver\n", __func__);
+		return -ENODEV;
+	}
+
+	if (device_id == ST54SPI_GPIO)
+		strscpy(device_name, "st54spi_gpio", MAX_NAME_SIZE);
+	else if (device_id == STSAFE320_GPIO)
+		strscpy(device_name, "stsafe320_gpio", MAX_NAME_SIZE);
 
 	pr_info("%s : enter", __func__);
 	st54spi_gpio_dev = devm_kzalloc(dev, sizeof(*st54spi_gpio_dev), GFP_KERNEL);
@@ -172,16 +191,16 @@ static int st54spi_gpio_probe(struct platform_device *pdev)
 		return -ENOMEM;
 
 	/* Create device node */
-	rc = alloc_chrdev_region(&st54spi_gpio_dev->st54spi_gpio_dev_t, 0, 1, "st54spi_gpio");
+	rc = alloc_chrdev_region(&st54spi_gpio_dev->st54spi_gpio_dev_t, 0, 1, device_name);
 	if (rc < 0) {
 		pr_err("%s: alloc_chrdev_region() failed\n", __func__);
 		return rc;
 	}
 
 #if (KERNEL_VERSION(6, 3, 0) <= LINUX_VERSION_CODE)
-	st54spi_gpio_dev->class = class_create("st54spi_gpio");
+	st54spi_gpio_dev->class = class_create(device_name);
 #else
-	st54spi_gpio_dev->class = class_create(THIS_MODULE, "st54spi_gpio");
+	st54spi_gpio_dev->class = class_create(THIS_MODULE, device_name);
 #endif
 
 	if (IS_ERR(st54spi_gpio_dev->class)) {
@@ -199,7 +218,7 @@ static int st54spi_gpio_probe(struct platform_device *pdev)
 
 	st54spi_gpio_dev->device = device_create(st54spi_gpio_dev->class,
 							NULL, st54spi_gpio_dev->st54spi_gpio_dev_t,
-							st54spi_gpio_dev, "st54spi_gpio");
+							st54spi_gpio_dev, device_name);
 	if (IS_ERR(st54spi_gpio_dev->device)) {
 		rc = PTR_ERR(st54spi_gpio_dev->device);
 		pr_err("%s: device_create failed: %d\n", __func__, rc);
@@ -274,8 +293,9 @@ static int st54spi_gpio_remove(struct platform_device *pdev)
 }
 
 static const struct of_device_id st54spi_gpio_of_match[] = {
-	{ .compatible = "st,st54spi_gpio", },
-	{},
+	{ .compatible = "st,st54spi_gpio", .data = (void *)ST54SPI_GPIO },
+	{ .compatible = "st,stsafe320_gpio", .data = (void *)STSAFE320_GPIO },
+	{}
 };
 MODULE_DEVICE_TABLE(of, st54spi_gpio_of_match);
 
