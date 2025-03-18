@@ -27,9 +27,7 @@
 #include "ipahal.h"
 #include "ipahal_fltrt.h"
 #include "ipa_stats.h"
-#ifdef CONFIG_IPA_RMNET_MEM
 #include <rmnet_mem.h>
-#endif
 
 #define IPA_GSI_EVENT_RP_SIZE 8
 #define IPA_WAN_NAPI_MAX_FRAMES (NAPI_WEIGHT / IPA_WAN_AGGR_PKT_CNT)
@@ -2715,7 +2713,6 @@ static struct page *ipa3_alloc_page(
 	return page;
 }
 
-#ifdef CONFIG_IPA_RMNET_MEM
 static struct page *ipa3_rmnet_alloc_page(
 	gfp_t flag, u32 *page_order, bool try_lower)
 {
@@ -2745,7 +2742,6 @@ static struct page *ipa3_rmnet_alloc_page(
 	*page_order = p_order;
 	return page;
 }
-#endif
 
 static struct ipa3_rx_pkt_wrapper *ipa3_alloc_rx_pkt_page(
 	gfp_t flag, bool is_tmp_alloc, struct ipa3_sys_context *sys)
@@ -2762,14 +2758,8 @@ static struct ipa3_rx_pkt_wrapper *ipa3_alloc_rx_pkt_page(
 	/* For temporary allocations, avoid triggering OOM Killer. */
 	if (is_tmp_alloc) {
 		flag |= __GFP_RETRY_MAYFAIL | __GFP_NOWARN;
-#ifdef CONFIG_IPA_RMNET_MEM
 		rx_pkt->page_data.page = ipa3_rmnet_alloc_page(
 			flag, &rx_pkt->page_data.page_order, true);
-#else
-		rx_pkt->page_data.page = ipa3_alloc_page(flag,
-					&rx_pkt->page_data.page_order,
-					(is_tmp_alloc && rx_pkt->page_data.page_order == 3));
-#endif
 	} else {
 		/* Try a lower order page for order 3 pages in case allocation fails. */
 		rx_pkt->page_data.page = ipa3_alloc_page(flag,
@@ -6910,7 +6900,7 @@ static int ipa_gsi_setup_transfer_ring(struct ipa3_ep_context *ep,
 		else
 			gsi_channel_props.tx_poll = false;
 	} else {
-		gsi_channel_props.dir = GSI_CHAN_DIR_FROM_GSI;
+		gsi_channel_props.dir = GSI_CHAN_DIR_TO_GSI;
 		if (ep->sys)
 			gsi_channel_props.max_re_expected = ep->sys->rx_pool_sz;
 	}
@@ -7366,7 +7356,7 @@ int ipa_gsi_ch20_wa(void)
 
 	memset(&gsi_channel_props, 0, sizeof(gsi_channel_props));
 	gsi_channel_props.prot = GSI_CHAN_PROT_GPI;
-	gsi_channel_props.dir = GSI_CHAN_DIR_TO_GSI;
+	gsi_channel_props.dir = CHAN_DIR_TO_GSI;
 	gsi_channel_props.evt_ring_hdl = ~0;
 	gsi_channel_props.re_size = GSI_CHAN_RE_SIZE_16B;
 	gsi_channel_props.ring_len = 4 * gsi_channel_props.re_size;
